@@ -1,0 +1,561 @@
+{
+  "name": "Telegram Excel to Odoo Purchase Order Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "edited_message"
+        ],
+        "additionalFields": {
+          "download": true
+        }
+      },
+      "id": "45ee5ac9-ac20-4ac4-b42c-72fa58d197e0",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -704,
+        64
+      ],
+      "webhookId": "2bcc31a4-b2ff-4dad-9c1a-b76a66cb8c1b",
+      "credentials": {
+        "telegramApi": {
+          "id": "EgDw9P8fGia5za25",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://arise3.odoo.com/jsonrpc",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"call\",\n  \"params\": {\n    \"service\": \"object\",\n    \"method\": \"execute_kw\",\n    \"args\": [\n        \"arise3\",\n      1,\n      \"a540f46916c165d27190b0aa18522a5dea2b42c1\",\n      \"res.partner\",\n      \"search\",\n      [\n        [\n          [\"name\", \"ilike\", \"{{ $('Telegram Trigger').item.json.message.caption }}\"]\n        ]\n      ]\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "1a3a73d6-c6a1-4f2e-bdff-fcbaf9064764",
+      "name": "Search Vendor in Odoo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -528,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.result }}",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "54b17320-fa1c-41d7-8cde-868cf3e727ee",
+      "name": "IF Vendor Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -352,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
+        "text": "=❌ Vendor not found: \"{{ $('Telegram Trigger').first().json.message.caption }}\"\n\n✅ Creat New Vendor.",
+        "additionalFields": {
+          "reply_to_message_id": "={{ $('Telegram Trigger').first().json.message.message_id }}"
+        }
+      },
+      "id": "0d421111-6e09-4869-8701-9bfbdd95e0b2",
+      "name": "Notify Vendor Not Found",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        0
+      ],
+      "webhookId": "6bcab9a6-2226-417b-9ae4-ffae0b3c5771",
+      "credentials": {
+        "telegramApi": {
+          "id": "EgDw9P8fGia5za25",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://arise3.odoo.com/jsonrpc",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"call\",\n  \"params\": {\n    \"service\": \"object\",\n    \"method\": \"execute_kw\",\n    \"args\": [\n       \"arise3\",\n      1,\n      \"a540f46916c165d27190b0aa18522a5dea2b42c1\",\n      \"purchase.order\",\n      \"create\",\n      [\n        [\n          {\n            \"partner_id\": {{ Array.isArray($json.result) ? $json.result[0] : $json.result }},\n            \"date_order\": \"{{ $now.format('yyyy-MM-dd') }}\"\n          }\n        ]\n      ]\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "aa6f5071-0532-4e83-9458-245665db829c",
+      "name": "Create Purchase Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        96,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Telegram se wapas File (Binary) uthana\nconst binaryData = $('Telegram Trigger').first().binary;\n\n// 2. Odoo se nayi bani PO ID uthana (Surakshit tareeka)\nlet newOrderId = null;\nif (items.length > 0 && items[0].json && items[0].json.result) {\n    // Agar Create PO Node successful hua, toh ID uthao\n    newOrderId = items[0].json.result;\n} else {\n    // Agar fail hua, toh error object mein PO ID nahi hogi\n    console.error('Create PO Node failed to return an order ID.');\n}\n\n// 3. Output ko sahi format mein bhejna (Extract Excel Data ke liye)\nreturn [\n  {\n    json: {\n      order_id: newOrderId // Null hoga agar error aaya\n    },\n    // Binary data ko 'data' property ke andar bhej rahe hain\n    binary: {\n        data: binaryData.data,\n        mimeType: binaryData.mimeType,\n        fileName: binaryData.fileName\n    }\n  }\n];"
+      },
+      "id": "ad639ed1-0504-4aaa-a2f5-5e357c1d2566",
+      "name": "Save PO ID & Repackage Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "headerRow": true,
+          "includeEmptyCells": false,
+          "rawData": false
+        }
+      },
+      "id": "8f6be8f8-0f5a-45df-8503-91dc28e52c62",
+      "name": "Extract Excel Data",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        544,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "name, default_code, hs_code, vendor_name, packing, packets_per_carton, ['uom_id/Name'], ['uom_po_id/Name'], qty_carton, net_weight_kg, gross_weight_kg, rate_per_carton_usd, price_per_packet_usd, total_amount_usd, currency, purchase_ok, sale_ok",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "id": "3c08183e-6eb1-40d5-bf91-41bd6d67da3a",
+      "name": "Split Excel Rows",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        768,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://arise3.odoo.com/jsonrpc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"call\",\n  \"params\": {\n    \"service\": \"object\",\n    \"method\": \"execute_kw\",\n    \"args\": [\n        \"arise3\",\n      1,\n      \"a540f46916c165d27190b0aa18522a5dea2b42c1\",\n      \"product.product\",\n      \"search_read\",\n      [\n        [\n          [\"default_code\", \"=\", \"{{$json.default_code}}\"]\n        ]\n      ],\n      {\n        \"fields\": [\"id\", \"name\", \"default_code\"]\n      }\n    ]\n  }\n}\n",
+        "options": {}
+      },
+      "id": "c456a977-ed1b-46d5-8ef8-466e91579d74",
+      "name": "Search Product in Odoo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        992,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.result.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "251b9277-5275-45d9-9eaf-7effcb643601",
+      "name": "IF Product Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1216,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "product_id",
+              "value": "={{ $json.result[0].id }}",
+              "type": "number"
+            },
+            {
+              "id": "id-3",
+              "name": "product_qty",
+              "value": "={{ $('Split Excel Rows').item.json.qty_carton }}",
+              "type": "number"
+            },
+            {
+              "id": "id-4",
+              "name": "price_unit",
+              "value": "={{ $('Split Excel Rows').item.json.packets_per_carton }}",
+              "type": "number"
+            },
+            {
+              "id": "db85832c-72ad-47a6-91a9-77006f2cbde4",
+              "name": "p_name",
+              "value": "={{ $json.result[0].name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "03aaf1a3-ec7e-4bf2-809a-44fd2745330e",
+      "name": "Prepare PO Line Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://arise3.odoo.com/jsonrpc",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"call\",\n  \"params\": {\n    \"service\": \"object\",\n    \"method\": \"execute_kw\",\n    \"args\": [\n        \"arise3\",\n      1,\n      \"a540f46916c165d27190b0aa18522a5dea2b42c1\",\n      \"purchase.order.line\",\n      \"create\",\n      [\n        [\n          {\n            \n             \"order_id\": {{ $('Save PO ID & Repackage Binary').item.json.order_id}}, \n             \"product_id\": {{ $json.product_id }},\n             \"product_qty\": {{ $json.product_qty }},\n             \"price_unit\": {{ $json.price_unit }},\n             \"name\": \"{{ $json.p_name}}\"\n          }\n        ]\n      ]\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "4de172fc-9894-4051-89f4-57191170763d",
+      "name": "Create PO Line",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1664,
+        64
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "ZXnW3bDWUTlsjHOf",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "status",
+              "value": "product_not_found",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "sku_searched",
+              "value": "={{ $json.data.SKU || $json.data.sku || $json.data.Code || $json.data.code || 'N/A' }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "name_searched",
+              "value": "={{ $json.data.ProductName || $json.data.product_name || $json.data.Name || $json.data.name || 'N/A' }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "error_message",
+              "value": "Product not found in Odoo",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "beb88c75-f068-448e-81fb-565b8f878b9c",
+      "name": "Log Product Not Found",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1664,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://arise3.odoo.com/jsonrpc",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"call\",\n  \"params\": {\n    \"service\": \"object\",\n    \"method\": \"execute_kw\",\n    \"args\": [\n       \"arise3\",\n      1,\n      \"a540f46916c165d27190b0aa18522a5dea2b42c1\",\n      \"res.partner\",\n      \"create\",\n      [\n        [\n          {\n            \"name\": \"{{ $('Telegram Trigger').item.json.message.caption }}\"\n          }\n        ]\n      ]\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "7d043806-bfb9-47b4-b430-4a94607b6ed5",
+      "name": "Create New Vendor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
+        "text": "=✅ Create New Po Successfully.",
+        "additionalFields": {
+          "reply_to_message_id": "={{ $('Telegram Trigger').first().json.message.message_id }}"
+        }
+      },
+      "id": "66d291b8-36eb-4600-bdc6-39508c6bd061",
+      "name": "Notify Vendor Not Found1",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1920,
+        64
+      ],
+      "webhookId": "6bcab9a6-2226-417b-9ae4-ffae0b3c5771",
+      "credentials": {
+        "telegramApi": {
+          "id": "EgDw9P8fGia5za25",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Search Vendor in Odoo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Vendor in Odoo": {
+      "main": [
+        [
+          {
+            "node": "IF Vendor Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Vendor Found?": {
+      "main": [
+        [
+          {
+            "node": "Create Purchase Order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create New Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Purchase Order": {
+      "main": [
+        [
+          {
+            "node": "Save PO ID & Repackage Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save PO ID & Repackage Binary": {
+      "main": [
+        [
+          {
+            "node": "Extract Excel Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Excel Data": {
+      "main": [
+        [
+          {
+            "node": "Split Excel Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Excel Rows": {
+      "main": [
+        [
+          {
+            "node": "Search Product in Odoo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Product in Odoo": {
+      "main": [
+        [
+          {
+            "node": "IF Product Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Product Found?": {
+      "main": [
+        [
+          {
+            "node": "Prepare PO Line Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Product Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare PO Line Data": {
+      "main": [
+        [
+          {
+            "node": "Create PO Line",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create PO Line": {
+      "main": [
+        [
+          {
+            "node": "Notify Vendor Not Found1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Vendor Not Found": {
+      "main": [
+        [
+          {
+            "node": "Create Purchase Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create New Vendor": {
+      "main": [
+        [
+          {
+            "node": "Notify Vendor Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8fcd458f-fcb6-4293-9d74-0e987120c8ff",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "232e339abeb6343adeadb4d9bd8f9efcb4424a1fcb02748cc1658a177a0ea07c"
+  },
+  "id": "JAf4sAuvFwhlmYf8",
+  "tags": []
+}
