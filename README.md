@@ -1,4 +1,9 @@
 # n8n Telegram to Odoo Purchase Automation
+## 🖼 Workflow Preview
+
+<p align="center">
+  <img src="Screenshot 2026-04-18 104956.png" width="800"/>
+</p>
 
 ## 🔥 Overview
 
